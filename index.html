@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>    
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My WebGIS Application</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@7.2.2/ol.css">
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            overflow: hidden; /* Prevent scrollbars for full screen */
+        }
+        #map {
+            width: 100%;
+            height: 100%; /* Full screen height */
+        }
+        .header {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 5px 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .controls {
+            position: absolute;
+            top: 100px;
+            right: 35px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 12px;
+            max-height: 90%;
+            overflow-y: auto;
+        }
+        .legend {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .legend h3 {
+            margin: 0 0 10px;
+            font-size: 16px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .legend-symbol {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            display: inline-block;
+		}
+        .geocoder {
+			position: absolute;
+			bottom: 20px; /* Adjust the bottom margin as needed */
+			left: 50%;
+			transform: translateX(-50%);
+			z-index: 1000;
+		}	
+		.ol-zoom {
+			position: absolute;
+			top: 20%;
+			left: 10px; /* Adjust left margin as needed */
+			transform: translateY(-30%);
+			z-index: 1000;
+		}
+		
+		}
+    </style>
+</head>
+<body>
+    <div class="header">Ormoc City Flood and Landslide Hazard Map</div>
+    <div id="map"></div>
+    <div class="legend">
+        <h3>Legend</h3>
+        <div class="legend-item">
+            <div class="legend-symbol" style="background-color: lightblue; border: 1px solid black;"></div>Flood - Very Low
+        </div>
+        <div class="legend-item">
+            <div class="legend-symbol" style="background-color: skyblue; border: 1px solid black;"></div>Flood - Low
+        </div>
+        <div class="legend-item">
+            <div class="legend-symbol" style="background-color: deepskyblue; border: 1px solid black;"></div>Flood - High
+        </div>
+        <div class="legend-item">
+            <div class="legend-symbol" style="background-color: royalblue; border: 1px solid black;"></div>Flood - Very High
+        </div>
+        <div class="legend-item">
+            <div class="legend-symbol" style="background-color: burlywood; border: 1px solid black;"></div>Landslide - Very Low
+        </div>
+        <div class="legend-item">
+            <div class="legend-symbol" style="background-color: peru; border: 1px solid black;"></div>Landslide - Low
+        </div>
+        <div class="legend-item">
+            <div class="legend-symbol" style="background-color: sienna; border: 1px solid black;"></div>Landslide - High
+        </div>
+        <div class="legend-item">
+            <div class="legend-symbol" style="background-color: saddlebrown; border: 1px solid black;"></div>Landslide - Very High
+        </div>
+        <div class="legend-item">
+            <div class="legend-symbol" style="background-color: grey; border: 1px solid black;"></div>Roads
+        </div>
+        <div class="legend-item">
+            <div class="legend-symbol" style="background-color: lightblue; border: 1px solid black;"></div>Waterways
+        </div>
+        <div class="legend-item">
+            <div class="legend-symbol" style="background-color: red; border: 1px solid black;"></div>Buildings
+        </div>
+    </div>
+    <div class="controls">
+        <h3>Layers</h3>
+        <div>
+            <input type="checkbox" id="floodVeryLow" checked> Flood - Very Low
+        </div>
+        <div>
+            <input type="checkbox" id="floodLow" checked> Flood - Low
+        </div>
+        <div>
+            <input type="checkbox" id="floodHigh" checked> Flood - High
+        </div>
+        <div>
+            <input type="checkbox" id="floodVeryHigh" checked> Flood - Very High
+        </div>
+        <div>
+            <input type="checkbox" id="landslideVeryLow" checked> Landslide - Very Low
+        </div>
+        <div>
+            <input type="checkbox" id="landslideLow" checked> Landslide - Low
+        </div>
+        <div>
+            <input type="checkbox" id="landslideHigh" checked> Landslide - High
+        </div>
+        <div>
+            <input type="checkbox" id="landslideVeryHigh" checked> Landslide - Very High
+        </div>
+        <div>
+            <input type="checkbox" id="roads" checked> Roads
+        </div>
+        <div>
+            <input type="checkbox" id="waterways" checked> Waterways
+        </div>
+        <div>
+            <input type="checkbox" id="buildings" checked> Buildings
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/ol@7.2.2/dist/ol.js"></script>
+	 <script src="https://cdn.jsdelivr.net/npm/ol-geocoder/dist/ol-geocoder.min.js"></script>
+    <script>
+        // Define layers
+        const layers = [
+            new ol.layer.Tile({
+                source: new ol.source.OSM(),
+                title: 'Base Map',
+                visible: true
+            }),
+            new ol.layer.Tile({
+                source: new ol.source.TileWMS({
+                    url: 'http://localhost:8080/geoserver/Roserwin/wms',
+                    params: {'LAYERS': 'Roserwin:flood_1_Very Low'},
+                    serverType: 'geoserver'
+                }),
+                title: 'Flood - Very Low',
+                visible: true
+            }),
+            new ol.layer.Tile({
+                source: new ol.source.TileWMS({
+                    url: 'http://localhost:8080/geoserver/Roserwin/wms',
+                    params: {'LAYERS': 'Roserwin:flood_2_Low'},
+                    serverType: 'geoserver'
+                }),
+                title: 'Flood - Low',
+                visible: true
+            }),
+            new ol.layer.Tile({
+                source: new ol.source.TileWMS({
+                    url: 'http://localhost:8080/geoserver/Roserwin/wms',
+                    params: {'LAYERS': 'Roserwin:flood_3_High'},
+                    serverType: 'geoserver'
+                }),
+                title: 'Flood - High',
+                visible: true
+            }),
+            new ol.layer.Tile({
+                source: new ol.source.TileWMS({
+                    url: 'http://localhost:8080/geoserver/Roserwin/wms',
+                    params: {'LAYERS': 'Roserwin:flood_4_Very High'},
+                    serverType: 'geoserver'
+                }),
+                title: 'Flood - Very High',
+                visible: true
+            }),
+            new ol.layer.Tile({
+                source: new ol.source.TileWMS({
+                    url: 'http://localhost:8080/geoserver/Roserwin/wms',
+                    params: {'LAYERS': 'Roserwin:landslide_1_Very Low'},
+                    serverType: 'geoserver'
+                }),
+                title: 'Landslide - Very Low',
+                visible: true
+            }),
+            new ol.layer.Tile({
+                source: new ol.source.TileWMS({
+                    url: 'http://localhost:8080/geoserver/Roserwin/wms',
+                    params: {'LAYERS': 'Roserwin:landslide_2_Low'},
+                    serverType: 'geoserver'
+                }),
+                title: 'Landslide - Low',
+                visible: true
+            }),
+            new ol.layer.Tile({
+                source: new ol.source.TileWMS({
+                    url: 'http://localhost:8080/geoserver/Roserwin/wms',
+                    params: {'LAYERS': 'Roserwin:landslide_3_High'},
+                    serverType: 'geoserver'
+                }),
+                title: 'Landslide - High',
+                visible: true
+            }),
+            new ol.layer.Tile({
+                source: new ol.source.TileWMS({
+                    url: 'http://localhost:8080/geoserver/Roserwin/wms',
+                    params: {'LAYERS': 'Roserwin:landslide_4_Very High'},
+                    serverType: 'geoserver'
+                }),
+                title: 'Landslide - Very High',
+                visible: true
+            }),
+            new ol.layer.Tile({
+                source: new ol.source.TileWMS({
+                    url: 'http://localhost:8080/geoserver/Roserwin/wms',
+                    params: {'LAYERS': 'Roserwin:Ormoc_City_Highways'},
+                    serverType: 'geoserver'
+                }),
+                title: 'Roads',
+                visible: true
+            }),
+            new ol.layer.Tile({
+                source: new ol.source.TileWMS({
+                    url: 'http://localhost:8080/geoserver/Roserwin/wms',
+                    params: {'LAYERS': 'Roserwin:Waterway_Ormoc_City'},
+                    serverType: 'geoserver'
+                }),
+                title: 'Waterways',
+                visible: true
+            }),
+            new ol.layer.Tile({
+                source: new ol.source.TileWMS({
+                    url: 'http://localhost:8080/geoserver/Roserwin/wms',
+                    params: {'LAYERS': 'Roserwin:Buildings_Ormoc_City'},
+                    serverType: 'geoserver'
+                }),
+                title: 'Buildings',
+                visible: true
+			}),
+            new ol.layer.Tile({
+                source: new ol.source.TileWMS({
+                    url: 'http://localhost:8080/geoserver/Roserwin/wms',
+                    params: {'LAYERS': 'Roserwin:Ormoc_City_BDRY'},
+                    serverType: 'geoserver'
+                }),
+                title: 'Boundary',
+                visible: true
+            })
+        ];
+
+        // Initialize map
+        var map = new ol.Map({
+            target: 'map',
+            layers: layers,
+            view: new ol.View({
+                center: ol.proj.fromLonLat([124.6193, 11.0384]),
+                zoom: 12.8
+            })
+        });
+		
+		// Add Geocoder
+        const geocoder = new Geocoder('nominatim', {
+            provider: 'osm',
+            targetType: 'text-input',
+            lang: 'en',
+            placeholder: 'Search for a location...',
+            limit: 5,
+            keepOpen: true
+        });
+        map.addControl(geocoder);
+
+        // Add event listeners to toggle layers
+        document.querySelectorAll('.controls input[type="checkbox"]').forEach((checkbox, index) => {
+            checkbox.addEventListener('change', function() {
+                layers[index + 1].setVisible(this.checked);
+            });
+        });
+
+        // Add zoom control
+        map.addControl(new ol.control.Zoom());
+
+        // Add mouse position control
+        var mousePositionControl = new ol.control.MousePosition({
+            coordinateFormat: ol.coordinate.createStringXY(4),
+            projection: 'EPSG:4326',
+            undefinedHTML: '&nbsp;'
+        });
+        map.addControl(mousePositionControl);
+
+        // Update coordinates dynamically
+        map.on('pointermove', function(event) {
+            var coordinates = ol.proj.toLonLat(event.coordinate);
+            document.getElementById('coordinates').innerText = 
+                `Lon: ${coordinates[0].toFixed(4)}, Lat: ${coordinates[1].toFixed(4)}`;
+        });
+
+        // Add scale bar
+        var scaleLineControl = new ol.control.ScaleLine({
+            units: 'metric',
+            bar: true,
+            steps: 4,
+            text: true
+        });
+        map.addControl(scaleLineControl);
+		
+    </script>
+</body>
+</html>
